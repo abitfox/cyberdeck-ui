@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>声音实验室 · Hacker English</title>
+<style>
+  :root {
+    --bg: #05090b; --bg2: #070d10; --line: rgba(170,200,205,0.22);
+    --fg: #a9c6ca; --bright: #d7ecee; --dim: #5c757a; --acc: #7fb3ba;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 24px 16px 60px; background: var(--bg); color: var(--fg);
+    font-family: "JetBrains Mono", "Share Tech Mono", ui-monospace, Consolas, monospace;
+    letter-spacing: 0.04em;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; }
+  h1 { color: var(--bright); font-size: 18px; letter-spacing: 0.3em; margin: 0 0 4px; text-shadow: 0 0 6px rgba(150,220,225,0.4); }
+  .sub { color: var(--dim); font-size: 12px; margin-bottom: 20px; line-height: 1.8; }
+  .sub b { color: var(--acc); }
+  code { background: rgba(170,200,205,0.08); padding: 1px 5px; border-radius: 3px; color: var(--bright); }
+  .group { border: 1px solid var(--line); background: var(--bg2); margin-bottom: 16px; }
+  .group > h2 {
+    margin: 0; padding: 10px 14px; font-size: 13px; letter-spacing: 0.25em; color: var(--acc);
+    border-bottom: 1px solid var(--line);
+  }
+  .group > h2 .cur { color: var(--dim); font-size: 11px; letter-spacing: 0.1em; float: right; }
+  .row {
+    display: flex; align-items: center; gap: 12px; padding: 9px 14px;
+    border-bottom: 1px solid rgba(170,200,205,0.08); font-size: 12px;
+  }
+  .row:last-child { border-bottom: none; }
+  .row.current { background: rgba(127,179,186,0.07); }
+  .id {
+    min-width: 38px; text-align: center; padding: 3px 0; color: var(--bright);
+    border: 1px solid var(--line-strong, rgba(170,200,205,0.4)); font-weight: bold; font-size: 11px;
+  }
+  .play {
+    width: 34px; height: 26px; cursor: pointer; color: var(--acc);
+    background: rgba(127,179,186,0.1); border: 1px solid var(--acc); border-radius: 3px;
+    font-family: inherit; font-size: 12px;
+  }
+  .play:hover { background: var(--acc); color: #000; }
+  .name { flex: 1; color: var(--fg); }
+  .badge { color: #ffd700; font-size: 10px; letter-spacing: 0.2em; }
+  textarea {
+    width: 100%; min-height: 120px; background: var(--bg2); color: var(--bright);
+    border: 1px solid var(--line); padding: 10px; font-family: inherit; font-size: 11px;
+    resize: vertical;
+  }
+  .btn {
+    cursor: pointer; color: var(--acc); background: rgba(127,179,186,0.1);
+    border: 1px solid var(--acc); padding: 7px 18px; font-family: inherit; font-size: 12px;
+    letter-spacing: 0.15em; border-radius: 3px;
+  }
+  .btn:hover { background: var(--acc); color: #000; }
+  .err { color: #ff6b6b; font-size: 12px; }
+  .scanning { animation: blink 1s steps(1) infinite; }
+  @keyframes blink { 0%,49% { opacity: 1; } 50%,100% { opacity: 0; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>声音实验室</h1>
+  <div class="sub">
+    每个音效位列出全部候选方案，点 <b>▶</b> 试听。选定后两种方式生效：<br />
+    ① 直接编辑 <code>frontend/public/sounds.json</code> 顶部 <code>slots</code> 映射（把音效位的值改成想要的 ID），刷新应用即全局生效；<br />
+    ② 把 ID 反馈给 AI（例如「打字机换 T4、键盘换 K3」）。<br />
+    想调参数：改预设里的 <code>freq / freqEnd / dur / gain / wave / filter</code>，或用页面底部自定义试听。
+  </div>
+  <div id="content" class="sub scanning">正在载入音效配置 ..._</div>
+
+  <div class="group">
+    <h2>自定义试听（粘贴单个预设 JSON）</h2>
+    <div style="padding: 12px 14px;">
+      <textarea id="customJson">{
+  "layers": [
+    { "kind": "osc", "wave": "square", "freq": 1040, "dur": 0.022, "gain": 0.025, "attack": 0.004 }
+  ]
+}</textarea>
+      <div style="margin-top: 10px;">
+        <button class="btn" id="playCustom">▶ 试听</button>
+        <span id="customMsg" style="margin-left: 10px; font-size: 11px; color: var(--dim);"></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const GROUP_NAMES = {
+  typeTick: "打字机单字（乱码解码逐帧）",
+  keyClick: "键盘敲击（含终端打字）",
+  terminalPrint: "终端欢迎语行输出",
+  bootBlip: "开机 stage1 · 矩形框渐显",
+  bootSweep: "开机 stage3 · 矩形扩张成外框",
+  bootEngage: "开机 stage4 · 覆盖层淡出露外框",
+  uiClick: "按钮点击",
+  panelExpand: "面板/环节展开显现"
+};
+
+let ctx = null;
+let config = null;
+let masterGain = null;
+let masterCtx = null;
+const sampleCache = new Map();
+
+/* 主音量总线：与应用端同源（sounds.json 的 masterVolume），压缩器防爆音 */
+function masterOut(c) {
+  if (!masterGain || masterCtx !== c) {
+    masterCtx = c;
+    masterGain = c.createGain();
+    const comp = c.createDynamicsCompressor();
+    comp.threshold.value = -12; comp.knee.value = 24;
+    comp.ratio.value = 6; comp.attack.value = 0.003; comp.release.value = 0.12;
+    masterGain.connect(comp).connect(c.destination);
+    masterGain.gain.value = (config && config.masterVolume) || 1;
+  }
+  return masterGain;
+}
+
+function getCtx() {
+  if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+  if (ctx.state === "suspended") ctx.resume();
+  return ctx;
+}
+
+function loadSample(c, url, onReady) {
+  if (sampleCache.has(url)) return;
+  sampleCache.set(url, "pending");
+  fetch(url)
+    .then((r) => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); })
+    .then((ab) => c.decodeAudioData(ab))
+    .then((buf) => { sampleCache.set(url, buf); if (onReady) onReady(); })
+    .catch(() => { sampleCache.delete(url); });
+}
+
+function renderLayer(c, t0, l) {
+  const at = t0 + (l.at || 0);
+  const attack = l.attack != null ? l.attack : 0.005;
+  const gain = c.createGain();
+  gain.gain.setValueAtTime(0.0001, at);
+  gain.gain.exponentialRampToValueAtTime(Math.max(l.gain, 0.0002), at + attack);
+  gain.gain.exponentialRampToValueAtTime(0.0001, at + l.dur);
+
+  let node;
+  if (l.kind === "noise") {
+    const dur = l.dur + 0.05;
+    const buffer = c.createBuffer(1, Math.ceil(c.sampleRate * dur), c.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+    const src = c.createBufferSource();
+    src.buffer = buffer;
+    src.start(at);
+    node = src;
+  } else {
+    const osc = c.createOscillator();
+    osc.type = l.wave || "sine";
+    osc.frequency.setValueAtTime(l.freq, at);
+    if (l.freqEnd) osc.frequency.exponentialRampToValueAtTime(l.freqEnd, at + l.dur);
+    osc.start(at);
+    osc.stop(at + l.dur + 0.05);
+    node = osc;
+  }
+
+  if (l.filter) {
+    const f = c.createBiquadFilter();
+    f.type = l.filter.type;
+    f.Q.value = l.filter.q != null ? l.filter.q : 1;
+    f.frequency.setValueAtTime(l.filter.freq, at);
+    if (l.filter.freqEnd) f.frequency.exponentialRampToValueAtTime(l.filter.freqEnd, at + l.dur);
+    node.connect(f); f.connect(gain);
+  } else {
+    node.connect(gain);
+  }
+  gain.connect(masterOut(c));
+}
+
+function playSample(c, now, preset) {
+  const url = preset.sample;
+  const buf = sampleCache.get(url);
+  if (!(buf instanceof AudioBuffer)) {
+    loadSample(c, url, () => playPreset(preset)); // 首次加载完自动补播一次
+    return;
+  }
+  const offset = preset.sampleOffset || 0;
+  const avail = buf.duration - offset;
+  if (avail <= 0) return;
+  const dur = Math.min(preset.sampleDur || avail, avail);
+  const jitter = preset.jitter != null ? preset.jitter : 0.06;
+  const rate = 1 + (Math.random() * 2 - 1) * jitter;
+  const src = c.createBufferSource();
+  src.buffer = buf;
+  src.playbackRate.value = rate;
+  const g = c.createGain();
+  g.gain.setValueAtTime(preset.sampleGain != null ? preset.sampleGain : 0.6, now);
+  g.gain.exponentialRampToValueAtTime(0.0001, now + dur / rate);
+  src.connect(g).connect(masterOut(c));
+  src.start(now, offset, dur / rate);
+}
+
+function playPreset(preset) {
+  const c = getCtx();
+  const now = c.currentTime;
+  if (preset.sample) {
+    playSample(c, now, preset);
+    return;
+  }
+  for (const layer of preset.layers) renderLayer(c, now, layer);
+}
+
+function render(cfg) {
+  config = cfg;
+  const root = document.getElementById("content");
+  root.className = "";
+  root.innerHTML = "";
+  for (const [slot, groupId] of Object.entries(cfg.slots)) {
+    const group = document.createElement("div");
+    group.className = "group";
+    const h2 = document.createElement("h2");
+    h2.innerHTML = (GROUP_NAMES[slot] || slot) +
+      ' <span class="cur">当前映射: ' + groupId + "</span>";
+    group.appendChild(h2);
+
+    const members = Object.entries(cfg.presets).filter(([, p]) => p.group === slot);
+    for (const [id, preset] of members) {
+      const row = document.createElement("div");
+      row.className = "row" + (id === groupId ? " current" : "");
+      const idEl = document.createElement("span");
+      idEl.className = "id"; idEl.textContent = id;
+      const btn = document.createElement("button");
+      btn.className = "play"; btn.textContent = "▶";
+      btn.onclick = () => playPreset(preset);
+      const name = document.createElement("span");
+      name.className = "name"; name.textContent = preset.name;
+      row.appendChild(idEl); row.appendChild(btn); row.appendChild(name);
+      if (id === groupId) {
+        const badge = document.createElement("span");
+        badge.className = "badge"; badge.textContent = "● 当前";
+        row.appendChild(badge);
+      }
+      group.appendChild(row);
+    }
+    root.appendChild(group);
+  }
+}
+
+fetch("/sounds.json")
+  .then((r) => { if (!r.ok) throw new Error(r.status); return r.json(); })
+  .then(render)
+  .catch(() => {
+    document.getElementById("content").className = "sub err";
+    document.getElementById("content").textContent =
+      "加载 /sounds.json 失败（若直接双击打开本文件会跨域，请通过 http://localhost:3000/sound-lab.html 访问）。";
+  });
+
+document.getElementById("playCustom").onclick = () => {
+  const msg = document.getElementById("customMsg");
+  try {
+    const preset = JSON.parse(document.getElementById("customJson").value);
+    if (!Array.isArray(preset.layers)) throw new Error("缺少 layers 数组");
+    playPreset(preset);
+    msg.textContent = "";
+  } catch (e) {
+    msg.textContent = "JSON 错误: " + e.message;
+  }
+};
+</script>
+</body>
+</html>
