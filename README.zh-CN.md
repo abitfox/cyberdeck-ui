@@ -99,6 +99,10 @@ import { ScrambleText } from "@/components/edex/scramble-text";
 └── LICENSE          # MIT（附 eDEX-UI 溯源说明）
 ```
 
+## 演示站点
+
+本组件库抽取自 [www.hackerenglish.com](https://www.hackerenglish.com) 的在线工作站——整站界面（开机序列、面板、小部件、键盘）就是这些组件的原始应用场景。
+
 ## 许可
 
 [MIT](./LICENSE) —— 视觉语言启发自（部分衍生自）[eDEX-UI](https://github.com/GitSquared/edex-ui)（MIT）。内置 Share Tech Mono 字体采用 SIL OFL 许可。

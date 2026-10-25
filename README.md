@@ -105,6 +105,10 @@ plus the source snippet behind them.
 └── LICENSE          # MIT (with eDEX-UI attribution)
 ```
 
+## Live demo
+
+The workstation this kit was extracted from runs live at [www.hackerenglish.com](https://www.hackerenglish.com) — the whole interface (boot sequence, panels, widgets, keyboard) is the original application of these components.
+
 ## License
 
 [MIT](./LICENSE) — the visual language is inspired by, and partially derived
