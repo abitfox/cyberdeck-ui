@@ -13,6 +13,8 @@
 
 ---
 
+> ▶ **Live site: [www.hackerenglish.com](https://www.hackerenglish.com)** — a full hacker workstation built with this kit.
+
 Build an eDEX-UI-flavored interface in minutes: a hacker-desktop with system
 telemetry, an interactive terminal, wireframe globes, CRT overlays and a full
 boot-sequence performance. Every component is React 18 + Tailwind,
@@ -104,10 +106,6 @@ plus the source snippet behind them.
 ├── frontend/        # Next.js 14 showcase + component library
 └── LICENSE          # MIT (with eDEX-UI attribution)
 ```
-
-## Live demo
-
-The workstation this kit was extracted from runs live at [www.hackerenglish.com](https://www.hackerenglish.com) — the whole interface (boot sequence, panels, widgets, keyboard) is the original application of these components.
 
 ## License
 

@@ -13,6 +13,8 @@
 
 ---
 
+> ▶ **在线演示：[www.hackerenglish.com](https://www.hackerenglish.com)** —— 用这套组件库搭建的完整黑客工作站。
+
 几分钟搭出 eDEX-UI 质感的界面：带系统遥测的黑客桌面、可交互终端、线框地球仪、CRT 覆盖层，以及一整套开机序列演出。所有组件基于 React 18 + Tailwind，纯 props 驱动，零业务逻辑、零重型依赖（没有 three.js、没有 framer-motion、没有状态库）。
 
 <div align="center">
@@ -98,10 +100,6 @@ import { ScrambleText } from "@/components/edex/scramble-text";
 ├── frontend/        # Next.js 14 演示站 + 组件库
 └── LICENSE          # MIT（附 eDEX-UI 溯源说明）
 ```
-
-## 演示站点
-
-本组件库抽取自 [www.hackerenglish.com](https://www.hackerenglish.com) 的在线工作站——整站界面（开机序列、面板、小部件、键盘）就是这些组件的原始应用场景。
 
 ## 许可
 
